@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, Response
+from flask import Flask, request, jsonify, render_template, Response, redirect
 from flask_cors import CORS
 from datetime import datetime
 import sqlite3
@@ -96,6 +96,10 @@ seed_expenses_if_empty()
 @app.route('/expenses')
 def expenses_page():
     return render_template('expenses.html')
+
+@app.route('/')
+def root_redirect():
+    return redirect('/expenses', code=302)
 
 @app.route('/api/expenses', methods=['GET'])
 def list_expenses():
