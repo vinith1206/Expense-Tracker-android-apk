@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expense Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        .container { max-width: 720px; width: 100%; margin: 0 auto; }
+        .card { background: #111; border-radius: 16px; padding: 16px; color: #fff; border: 1px solid rgba(255,255,255,0.1); }
+        .title { font-size: 24px; margin-bottom: 12px; }
+        .row { display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr 1fr auto; gap: 8px; align-items: center; }
+        .row.header { color: #aaa; font-size: 14px; margin-top: 8px; margin-bottom: 8px; }
+        .list { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+        input, select { background: #222; color: #fff; border: 1px solid #333; border-radius: 10px; padding: 10px 12px; width: 100%; }
+        .btn-prim { background: #ff9500; color: #fff; border: none; padding: 10px 14px; border-radius: 10px; cursor: pointer; }
+        .btn-del { background: #b00020; color: #fff; border: none; padding: 8px 12px; border-radius: 10px; cursor: pointer; }
+        .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        a.link { color: #ff9500; text-decoration: none; }
+        .total { font-weight: 600; }
+        @media (max-width: 640px){ .row { grid-template-columns: 1.3fr 1fr 1fr auto; } .col-cat, .col-person { display:none; } }
+        .progress { background:#222; border-radius:10px; height:12px; overflow:hidden; }
+        .progress > div { height:100%; background:#34c759; width:0%; transition:width .3s ease; }
+    </style>
+    <script>
+        let pieChart = null;
+        async function fetchExpenses(){
+            const person = (document.getElementById('filter-person')?.value || '').trim();
+            const month = (document.getElementById('filter-month')?.value || '').trim();
+            const params = new URLSearchParams();
+            if (person) params.set('person', person);
+            if (month) params.set('month', month);
+            const res = await fetch('/api/expenses' + (params.toString()? ('?' + params.toString()) : ''));
+            const data = await res.json();
+            return data.expenses || [];
+        }
+
+        function fmtAmount(v){
+            const n = Number(v);
+            return '₹ ' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        async function render(){
+            const list = document.getElementById('list');
+            list.innerHTML = '';
+            const expenses = await fetchExpenses();
+            let total = 0;
+            expenses.forEach(e => {
+                total += Number(e.amount) || 0;
+                const row = document.createElement('div');
+                row.className = 'row card';
+                row.innerHTML = `
+                    <div>${e.title}</div>
+                    <div>${fmtAmount(e.amount)}</div>
+                    <div class="col-cat">${e.category || '-'}</div>
+                    <div>${new Date(e.spent_at).toLocaleDateString()}</div>
+                    <div class="col-person">${e.person || '-'}</div>
+                    <div><button class="btn-del" onclick="del(${e.id})">Delete</button></div>
+                `;
+                list.appendChild(row);
+            });
+            document.getElementById('total').textContent = fmtAmount(total);
+            await renderChart();
+            updateSalaryPct();
+        }
+
+        async function add(e){
+            e.preventDefault();
+            const body = {
+                title: document.getElementById('title').value,
+                amount: document.getElementById('amount').value,
+                category: document.getElementById('category').value,
+                spent_at: document.getElementById('date').value || new Date().toISOString(),
+                person: document.getElementById('person').value
+            };
+            const res = await fetch('/api/expenses', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+            if(res.ok){
+                document.getElementById('form').reset();
+                await render();
+            } else {
+                const j = await res.json().catch(()=>({error:'Error'}));
+                alert(j.error || 'Failed');
+            }
+        }
+
+        async function del(id){
+            const res = await fetch('/api/expenses/' + id, { method: 'DELETE' });
+            if(res.ok){ await render(); } else { alert('Delete failed'); }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => { await render(); await renderBudgets(); });
+
+        async function renderChart(){
+            const person = (document.getElementById('filter-person')?.value || '').trim();
+            const month = (document.getElementById('filter-month')?.value || '').trim();
+            const params = new URLSearchParams();
+            if (person) params.set('person', person);
+            if (month) params.set('month', month);
+            const res = await fetch('/api/expenses/summary' + (params.toString()? ('?' + params.toString()) : ''));
+            const data = await res.json();
+            const byCat = data.by_category || {};
+            const labels = Object.keys(byCat);
+            const values = labels.map(k => byCat[k] || 0);
+            const bg = labels.map((_, i) => {
+                const hue = Math.round((360 / Math.max(1, labels.length)) * i);
+                return `hsl(${hue}, 85%, 55%)`;
+            });
+            const ctx = document.getElementById('pie').getContext('2d');
+            if(pieChart){ pieChart.destroy(); }
+            pieChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{ data: values, backgroundColor: bg }]
+                },
+                options: {
+                    plugins: {
+                        legend: { labels: { color: '#fff' } },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const total = values.reduce((a,b)=>a+b,0) || 1;
+                                    const v = context.parsed || 0;
+                                    const pct = ((v/total)*100).toFixed(1);
+                                    return `${context.label}: ${pct}% (${fmtAmount(v)})`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        async function renderBudgets(){
+            const wrap = document.getElementById('budgets');
+            if(!wrap) return;
+            const person = (document.getElementById('filter-person')?.value || '').trim();
+            const month = (document.getElementById('filter-month')?.value || '').trim();
+            const params = new URLSearchParams();
+            if (person) params.set('person', person);
+            if (month) params.set('month', month);
+            const [sumRes, budRes] = await Promise.all([
+                fetch('/api/expenses/summary' + (params.toString()? ('?' + params.toString()) : '')),
+                fetch('/api/budgets' + (params.toString()? ('?' + params.toString()) : ''))
+            ]);
+            const summary = await sumRes.json();
+            const budgets = (await budRes.json()).budgets || [];
+            const byCat = summary.by_category || {};
+            wrap.innerHTML = '';
+            const monthLabel = month || new Date().toISOString().slice(0,7);
+            const header = document.createElement('div');
+            header.className = 'title';
+            header.textContent = 'Budgets (' + monthLabel + ')';
+            wrap.appendChild(header);
+            budgets.forEach(b => {
+                const spent = byCat[b.category] || 0;
+                const pct = b.amount ? Math.min(100, (spent / b.amount) * 100) : 0;
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.style.marginTop = '8px';
+                card.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <div>${b.category}</div>
+                        <div>${fmtAmount(spent)} / ${fmtAmount(b.amount)}</div>
+                    </div>
+                    <div class="progress"><div style="width:${pct.toFixed(1)}%; background:${spent>b.amount? '#ff453a':'#34c759'};"></div></div>
+                `;
+                wrap.appendChild(card);
+            });
+        }
+
+        async function saveBudget(){
+            const month = (document.getElementById('filter-month')?.value || new Date().toISOString().slice(0,7));
+            const category = document.getElementById('budget-category').value;
+            const amount = document.getElementById('budget-amount').value;
+            const person = (document.getElementById('filter-person')?.value || '').trim();
+            const res = await fetch('/api/budgets', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ month, category, amount, person })});
+            if(res.ok){ await renderBudgets(); document.getElementById('budget-amount').value=''; }
+        }
+
+        function exportExcel(){
+            const person = (document.getElementById('filter-person')?.value || '').trim();
+            const month = (document.getElementById('filter-month')?.value || '').trim();
+            const params = new URLSearchParams();
+            if (person) params.set('person', person);
+            if (month) params.set('month', month);
+            const url = '/api/expenses/export.xlsx' + (params.toString()? ('?' + params.toString()) : '');
+            window.location.href = url;
+        }
+
+        function updateSalaryPct(){
+            const totalText = (document.getElementById('total').textContent || '').replace(/[^0-9.]/g, '');
+            const total = parseFloat(totalText) || 0;
+            const salaryVal = document.getElementById('salary')?.value || '';
+            const salary = parseFloat(salaryVal);
+            const el = document.getElementById('spentPct');
+            if (!salary || salary <= 0) { el.textContent = '0%'; el.style.color = '#fff'; return; }
+            let pct = (total / salary) * 100;
+            if (total > salary) pct = -pct; // show negative when overspending
+            pct = Math.max(-999, Math.min(999, pct));
+            el.textContent = pct.toFixed(1) + '%';
+            el.style.color = pct < 0 ? '#ff453a' : '#fff';
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="topbar">
+            <div class="title">Expense Tracker</div>
+            <a class="link" href="/">← Back to Calculator</a>
+        </div>
+        <div class="signature" style="text-align:center; margin-bottom:10px;">Vineeth Expense Tracker</div>
+
+        <div class="card" style="margin-bottom:12px;">
+            <div class="row">
+                <input id="filter-person" placeholder="Filter by person (leave empty for all)">
+                <input id="filter-month" type="month" value="" placeholder="YYYY-MM">
+                <div></div>
+                <button class="btn-prim" onclick="render()">Apply</button>
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom:12px;">
+            <div class="row">
+                <input id="salary" type="number" step="0.01" placeholder="Monthly salary (₹)">
+                <div></div><div></div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <div style="opacity:0.8;">Spent %</div>
+                    <div id="spentPct" class="total">0%</div>
+                </div>
+                <button class="btn-prim" onclick="updateSalaryPct()">Calculate</button>
+            </div>
+        </div>
+
+        <form id="form" class="card" onsubmit="add(event)">
+            <div class="row">
+                <input id="title" placeholder="Title" required>
+                <input id="amount" type="number" step="0.01" placeholder="Amount (₹)" required>
+                <select id="category">
+                    <option value="">Category</option>
+                    <option>Groceries</option>
+                    <option>Rent</option>
+                    <option>Utilities</option>
+                    <option>Education</option>
+                    <option>Transport</option>
+                    <option>Fuel</option>
+                    <option>Medical</option>
+                    <option>EMI/Loans</option>
+                    <option>Mobile/Internet</option>
+                    <option>Dining Out</option>
+                    <option>Household</option>
+                    <option>Insurance</option>
+                    <option>Savings</option>
+                    <option>Other</option>
+                </select>
+                <input id="date" type="date">
+                <input id="person" placeholder="Person (e.g., Dad/Mom)">
+                <button class="btn-prim" type="submit">Add</button>
+            </div>
+        </form>
+
+        <div class="row header">
+            <div>Title</div>
+            <div>Amount</div>
+            <div class="col-cat">Category</div>
+            <div>Date</div>
+            <div class="col-person">Person</div>
+            <div></div>
+        </div>
+        <div id="list" class="list"></div>
+
+        <div class="card" style="margin-top:12px; display:flex; justify-content: space-between;">
+            <div>Total</div>
+            <div id="total" class="total">₹ 0.00</div>
+        </div>
+
+        <div class="card" style="margin-top:12px;">
+            <div class="title" style="margin-bottom:8px;">Spending by Category</div>
+            <canvas id="pie" height="200"></canvas>
+            <div style="text-align:right; margin-top:8px;">
+                <button class="btn-prim" onclick="exportExcel()">Export Excel</button>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top:12px;" id="budgets">
+            <!-- budgets will render here -->
+        </div>
+
+        <div class="card" style="margin-top:12px;">
+            <div class="row">
+                <select id="budget-category">
+                    <option>Groceries</option>
+                    <option>Rent</option>
+                    <option>Utilities</option>
+                    <option>Education</option>
+                    <option>Transport</option>
+                    <option>Fuel</option>
+                    <option>Medical</option>
+                    <option>EMI/Loans</option>
+                    <option>Mobile/Internet</option>
+                    <option>Dining Out</option>
+                    <option>Household</option>
+                    <option>Insurance</option>
+                    <option>Savings</option>
+                    <option>Other</option>
+                </select>
+                <input id="budget-amount" type="number" step="0.01" placeholder="Budget amount (₹)">
+                <div></div><div></div>
+                <button class="btn-prim" onclick="saveBudget()">Save Budget</button>
+            </div>
+        </div>
+
+
+        
+    </div>
+</body>
+</html>
+
