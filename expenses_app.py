@@ -11,7 +11,11 @@ from openpyxl.styles import Font, Alignment, PatternFill
 app = Flask(__name__)
 CORS(app)
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'expenses.db')
+# Use a writable path on Vercel (/tmp) and local file when running locally
+if os.environ.get('VERCEL') == '1':
+    DB_PATH = os.path.join('/tmp', 'expenses.db')
+else:
+    DB_PATH = os.path.join(os.path.dirname(__file__), 'expenses.db')
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
