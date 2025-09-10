@@ -17,7 +17,7 @@ The repository also includes a fully featured Expense Tracker tailored for an In
    PORT=5051 FLASK_ENV=development python expenses_app.py
    ```
 3. Open the UI
-   - Visit `http://localhost:5051/expenses`
+   - Visit `https://vineeth-expense-tracker-84i6.vercel.app/expenses`
 
 Notes:
 - Uses SQLite for storage (created automatically).
