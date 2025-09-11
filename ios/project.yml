@@ -20,7 +20,7 @@ targets:
       - path: Resources
         type: folder
     settings:
-      PRODUCT_BUNDLE_IDENTIFIER: com.vineeth.expensetracker
+      PRODUCT_BUNDLE_IDENTIFIER: com.vineeth.expensetracker.ios
       DEVELOPMENT_TEAM: ""
       SWIFT_VERSION: 5.0
       INFOPLIST_FILE: App/Info.plist

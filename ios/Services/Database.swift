@@ -64,7 +64,7 @@ final class DatabaseService {
                 amount: row[amount],
                 category: row[category],
                 spentAtISO: row[spentAt],
-                person: row[person]
+                person: row[self.person]
             )
         }
     }

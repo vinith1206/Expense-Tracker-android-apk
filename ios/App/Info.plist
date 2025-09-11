@@ -5,7 +5,7 @@
     <key>CFBundleDisplayName</key>
     <string>ExpenseTracker</string>
     <key>CFBundleIdentifier</key>
-    <string>com.vineeth.expensetracker</string>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
     <key>CFBundleName</key>
     <string>ExpenseTracker</string>
     <key>CFBundleShortVersionString</key>

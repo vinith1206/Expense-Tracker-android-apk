@@ -9,40 +9,15 @@ struct ExpensesListView: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(expenses) { exp in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(exp.title)
-                                .font(.headline)
-                            Spacer()
-                            Text(exp.amount, format: .currency(code: Locale.current.currency?.identifier ?? "USD"))
-                                .font(.subheadline)
-                        }
-                        HStack(spacing: 8) {
-                            if let cat = exp.category, !cat.isEmpty {
-                                Label(cat, systemImage: "tag")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            if let person = exp.person, !person.isEmpty {
-                                Label(person, systemImage: "person")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            if let d = exp.spentDate {
-                                Label(d, format: .dateTime.year().month().day().hour().minute(), systemImage: "calendar")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                ForEach(Array(expenses.enumerated()), id: \.0) { _, exp in
+                    ExpenseRowView(exp: exp)
+                        .swipeActions {
+                            Button(role: .destructive) {
+                                delete(expense: exp)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
                             }
                         }
-                    }
-                    .swipeActions {
-                        Button(role: .destructive) {
-                            delete(expense: exp)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    }
                 }
             }
             .navigationTitle("Expenses")
@@ -102,6 +77,47 @@ struct ExpensesListView: View {
             expenses.removeAll { $0.id == id }
         } catch {
             print("Delete failed: \(error)")
+        }
+    }
+}
+
+private struct ExpenseRowView: View {
+    let exp: Expense
+
+    private var currencyCode: String {
+        Locale.current.currency?.identifier ?? "USD"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(exp.title)
+                    .font(.headline)
+                Spacer()
+                Text(exp.amount, format: .currency(code: currencyCode))
+                    .font(.subheadline)
+            }
+            HStack(spacing: 8) {
+                if let cat = exp.category, !cat.isEmpty {
+                    Label(cat, systemImage: "tag")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let person = exp.person, !person.isEmpty {
+                    Label(person, systemImage: "person")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let d = exp.spentDate {
+                    Label {
+                        Text(d, format: .dateTime.year().month().day().hour().minute())
+                    } icon: {
+                        Image(systemName: "calendar")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 }
