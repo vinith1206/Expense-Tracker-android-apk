@@ -8,4 +8,7 @@ class BudgetRepository(private val dao: BudgetDao) {
     suspend fun setOverall(year: Int, month: Int, amount: Double) {
         dao.insert(BudgetEntity(year = year, month = month, amount = amount))
     }
+    suspend fun deleteOverall(year: Int, month: Int) {
+        dao.deleteOverall(year, month)
+    }
 }

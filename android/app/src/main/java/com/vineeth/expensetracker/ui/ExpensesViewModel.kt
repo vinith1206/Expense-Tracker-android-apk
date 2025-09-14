@@ -128,4 +128,9 @@ class ExpensesViewModel(
         val repo = budgetRepository ?: return
         viewModelScope.launch { repo.setOverall(year, month, amount) }
     }
+
+    fun deleteMonthlyBudget(year: Int, month: Int) {
+        val repo = budgetRepository ?: return
+        viewModelScope.launch { repo.deleteOverall(year, month) }
+    }
 }

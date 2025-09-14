@@ -16,4 +16,7 @@ interface BudgetDao {
 
     @Query("SELECT * FROM budgets WHERE year = :year AND month = :month AND category = :category LIMIT 1")
     fun observeCategory(year: Int, month: Int, category: String): Flow<BudgetEntity?>
+
+    @Query("DELETE FROM budgets WHERE year = :year AND month = :month AND category IS NULL")
+    suspend fun deleteOverall(year: Int, month: Int)
 }
